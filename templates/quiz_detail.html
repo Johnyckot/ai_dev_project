@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ quiz.title }}{% endblock %}
+
+{% block content %}
+<h1>{{ quiz.title }}</h1>
+<p>{{ quiz.description }}</p>
+<h2>Questions</h2>
+{% for question in questions %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>{{ question.text }}</h5>
+            <ul>
+                {% for answer in question.answers.all %}
+                    <li>{{ answer.text }}{% if answer.is_correct %} (Correct){% endif %}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+{% empty %}
+    <p>No questions yet.</p>
+{% endfor %}
+<a href="#" class="btn btn-secondary">Add Question</a>
+<a href="#" class="btn btn-success">Start Session</a>
+{% endblock %}
