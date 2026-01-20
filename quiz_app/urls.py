@@ -28,4 +28,8 @@ urlpatterns = [
     path('quizzes/', views.quiz_list, name='quiz_list'),
     path('quizzes/create/', views.create_quiz, name='create_quiz'),
     path('quizzes/<int:quiz_id>/', views.quiz_detail, name='quiz_detail'),
+    path('quizzes/<int:quiz_id>/add_question/', views.add_question, name='add_question'),
+    path('quizzes/<int:quiz_id>/start_session/', views.start_session, name='start_session'),
+    path('sessions/<int:session_id>/', views.session_detail, name='session_detail'),
+    path('join/', views.join_session, name='join_session'),
 ]

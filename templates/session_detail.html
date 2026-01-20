@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Session {{ session.code }}{% endblock %}
+
+{% block content %}
+<h1>Session {{ session.code }} - {{ session.quiz.title }}</h1>
+<p>Status: {{ session.get_status_display }}</p>
+<h2>Participants</h2>
+<ul>
+    {% for participant in participants %}
+        <li>{{ participant.user.username }} - Score: {{ participant.score }}</li>
+    {% endfor %}
+</ul>
+<p>Session Code: <strong>{{ session.code }}</strong></p>
+<p>Share this code for others to join.</p>
+{% if session.host == user %}
+    <button class="btn btn-primary" onclick="startQuiz()">Start Quiz</button>
+{% endif %}
+<div id="quiz-area">
+{% if session.status == 'active' and session.current_question %}
+        <h3>{{ session.current_question.text }}</h3>
+        <ul>
+            {% for answer in session.current_question.answers.all %}
+                <li><button onclick="submitAnswer({{ answer.id }})">{{ answer.text }}</button></li>
+            {% endfor %}
+        </ul>
+    {% elif session.status == 'finished' %}
+        <h3>Quiz Finished!</h3>
+        <h4>Leaderboard</h4>
+        <ol>
+            {% for participant in participants|dictsortreversed:"score" %}
+                <li>{{ participant.user.username }} - {{ participant.score }} points</li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+</div>
+
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+function startQuiz() {
+    fetch('/api/sessions/{{ session.id }}/start/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'started') {
+            location.reload();  // Refresh to show question
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function submitAnswer(answerId) {
+    fetch('/api/sessions/{{ session.id }}/submit_answer/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ answer_id: answerId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'submitted') {
+            alert('Answer submitted!');
+            location.reload();  // Refresh to see next question or results
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+</script>
+{% endblock %}

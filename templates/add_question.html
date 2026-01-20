@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Question to {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<h1>Add Question to {{ quiz.title }}</h1>
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="text" class="form-label">Question Text</label>
+        <input type="text" class="form-control" id="text" name="text" required>
+    </div>
+    <div class="mb-3">
+        <label for="question_type" class="form-label">Question Type</label>
+        <select class="form-control" id="question_type" name="question_type">
+            <option value="single">Single Choice</option>
+            <option value="multiple">Multiple Choice</option>
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="time_limit" class="form-label">Time Limit (seconds)</label>
+        <input type="number" class="form-control" id="time_limit" name="time_limit" value="30">
+    </div>
+    <div id="answers">
+        <div class="mb-3">
+            <label class="form-label">Answers</label>
+            <input type="text" class="form-control mb-2" name="answers" placeholder="Answer 1" required>
+            <input type="text" class="form-control mb-2" name="answers" placeholder="Answer 2" required>
+        </div>
+    </div>
+    <button type="button" class="btn btn-outline-primary" onclick="addAnswer()">Add Another Answer</button>
+    <div class="mb-3">
+        <label for="correct" class="form-label">Correct Answer Index (0-based)</label>
+        <input type="number" class="form-control" id="correct" name="correct" value="0" min="0">
+    </div>
+    <button type="submit" class="btn btn-primary">Add Question</button>
+</form>
+
+<script>
+function addAnswer() {
+    const answersDiv = document.getElementById('answers');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control mb-2';
+    input.name = 'answers';
+    input.placeholder = 'Answer ' + (answersDiv.querySelectorAll('input').length + 1);
+    answersDiv.appendChild(input);
+}
+</script>
+{% endblock %}

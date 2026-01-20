@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Start Session for {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<h1>Start Session for {{ quiz.title }}</h1>
+<p>Are you sure you want to start a new session for this quiz?</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">Yes, Start Session</button>
+    <a href="{% url 'quiz_detail' quiz.id %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

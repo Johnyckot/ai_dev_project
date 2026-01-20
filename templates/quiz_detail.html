@@ -20,6 +20,9 @@
 {% empty %}
     <p>No questions yet.</p>
 {% endfor %}
-<a href="#" class="btn btn-secondary">Add Question</a>
-<a href="#" class="btn btn-success">Start Session</a>
+<a href="{% url 'add_question' quiz.id %}" class="btn btn-secondary">Add Question</a>
+<form method="post" action="{% url 'start_session' quiz.id %}" style="display: inline;">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">Start Session</button>
+</form>
 {% endblock %}
