@@ -16,6 +16,7 @@ class QuizSession(models.Model):
     code = models.CharField(max_length=6, unique=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='waiting')
     current_question = models.ForeignKey(Question, on_delete=models.SET_NULL, null=True, blank=True)
+    current_question_start = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

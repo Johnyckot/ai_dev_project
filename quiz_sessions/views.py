@@ -6,6 +6,9 @@ from questions.models import Answer
 from .serializers import QuizSessionSerializer, ParticipantSerializer
 import random
 import string
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.utils import timezone
 
 class QuizSessionViewSet(viewsets.ModelViewSet):
     queryset = QuizSession.objects.all()
@@ -35,7 +38,21 @@ class QuizSessionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only host can start'}, status=403)
         session.status = 'active'
         session.current_question = session.quiz.questions.first()
+        session.current_question_start = timezone.now()
         session.save()
+        # Send WebSocket message
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'quiz_{session.code}',
+            {
+                'type': 'quiz_started',
+                'question': {
+                    'id': session.current_question.id,
+                    'text': session.current_question.text,
+                    'answers': list(session.current_question.answers.values('id', 'text'))
+                }
+            }
+        )
         return Response({'status': 'started'})
 
     @action(detail=True, methods=['post'])
@@ -59,23 +76,82 @@ class QuizSessionViewSet(viewsets.ModelViewSet):
         if answer.is_correct:
             participant.score += 10  # Example points
             participant.save()
-        # Check if all participants have answered
+        # Check if all participants have answered or timeout
         total_participants = session.participants.count()
         answered = AnswerSubmission.objects.filter(participant__session=session, question=question).count()
-        if answered == total_participants:
-            # All answered, move to next or finish
+        time_elapsed = (timezone.now() - session.current_question_start).total_seconds()
+        timeout = 30  # seconds
+        channel_layer = get_channel_layer()
+        moved = False
+        if answered == total_participants or time_elapsed >= timeout:
+            moved = True
+            # All answered or timeout, move to next or finish
             next_question = session.quiz.questions.filter(id__gt=question.id).first()
             if next_question:
                 session.current_question = next_question
+                session.current_question_start = timezone.now()
                 session.save()
+                async_to_sync(channel_layer.group_send)(
+                    f'quiz_{session.code}',
+                    {
+                        'type': 'next_question',
+                        'question': {
+                            'id': next_question.id,
+                            'text': next_question.text,
+                            'answers': list(next_question.answers.values('id', 'text'))
+                        }
+                    }
+                )
             else:
                 session.status = 'finished'
                 session.save()
-        return Response({'status': 'submitted'})
+                # Get leaderboard
+                participants = session.participants.order_by('-score')
+                leaderboard = [{'username': p.user.username, 'score': p.score} for p in participants]
+                async_to_sync(channel_layer.group_send)(
+                    f'quiz_{session.code}',
+                    {
+                        'type': 'quiz_finished',
+                        'leaderboard': leaderboard
+                    }
+                )
+        return Response({'status': f'submitted, answered {answered}/{total_participants}, time {time_elapsed:.1f}s, moved: {moved}'})
 
-    @action(detail=True, methods=['get'])
-    def leaderboard(self, request, pk=None):
+    @action(detail=True, methods=['post'])
+    def force_next(self, request, pk=None):
         session = self.get_object()
-        participants = session.participants.order_by('-score')
-        serializer = ParticipantSerializer(participants, many=True)
-        return Response(serializer.data)
+        if session.host != request.user:
+            return Response({'error': 'Only host can force next'}, status=403)
+        if session.status != 'active' or not session.current_question:
+            return Response({'error': 'No active question'}, status=400)
+        channel_layer = get_channel_layer()
+        # Move to next or finish
+        next_question = session.quiz.questions.filter(id__gt=session.current_question.id).first()
+        if next_question:
+            session.current_question = next_question
+            session.current_question_start = timezone.now()
+            session.save()
+            async_to_sync(channel_layer.group_send)(
+                f'quiz_{session.code}',
+                {
+                    'type': 'next_question',
+                    'question': {
+                        'id': next_question.id,
+                        'text': next_question.text,
+                        'answers': list(next_question.answers.values('id', 'text'))
+                    }
+                }
+            )
+        else:
+            session.status = 'finished'
+            session.save()
+            participants = session.participants.order_by('-score')
+            leaderboard = [{'username': p.user.username, 'score': p.score} for p in participants]
+            async_to_sync(channel_layer.group_send)(
+                f'quiz_{session.code}',
+                {
+                    'type': 'quiz_finished',
+                    'leaderboard': leaderboard
+                }
+            )
+        return Response({'status': 'next_forced'})

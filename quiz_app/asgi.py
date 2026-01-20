@@ -14,10 +14,11 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'quiz_app.settings')
 
-# Import routing after settings
-from sessions.routing import websocket_urlpatterns  # We'll create this
+def get_websocket_application():
+    from quiz_sessions.routing import websocket_urlpatterns
+    return URLRouter(websocket_urlpatterns)
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": URLRouter(websocket_urlpatterns),
+    "websocket": get_websocket_application(),
 })

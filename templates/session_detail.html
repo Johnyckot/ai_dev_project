@@ -13,8 +13,11 @@
 </ul>
 <p>Session Code: <strong>{{ session.code }}</strong></p>
 <p>Share this code for others to join.</p>
-{% if session.host == user %}
+{% if session.status == 'waiting' and session.host == user %}
     <button class="btn btn-primary" onclick="startQuiz()">Start Quiz</button>
+{% endif %}
+{% if session.host == user %}
+    <button class="btn btn-warning mt-2" onclick="forceNext()">Force Next Question</button>
 {% endif %}
 <div id="quiz-area">
 {% if session.status == 'active' and session.current_question %}
@@ -35,8 +38,40 @@
     {% endif %}
 </div>
 
+{% block scripts %}
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const sessionCode = '{{ session.code }}';
+const quizArea = document.getElementById('quiz-area');
+const statusP = document.querySelector('p');
+
+let socket = new WebSocket(`ws://127.0.0.1:8000/ws/quiz/${sessionCode}/`);
+
+socket.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log('WS Received:', data);
+    if (data.type === 'quiz_started') {
+        statusP.textContent = 'Status: Active';
+        showQuestion(data.question);
+    } else if (data.type === 'next_question') {
+        showQuestion(data.question);
+    } else if (data.type === 'quiz_finished') {
+        statusP.textContent = 'Status: Finished';
+        showResults(data.leaderboard);
+    }
+};
+
+socket.onopen = function(event) {
+    console.log('WebSocket connected to', `ws://127.0.0.1:8000/ws/quiz/${sessionCode}/`);
+};
+
+socket.onerror = function(error) {
+    console.error('WebSocket error:', error);
+};
+
+socket.onclose = function(event) {
+    console.log('WebSocket closed:', event);
+};
 
 function startQuiz() {
     fetch('/api/sessions/{{ session.id }}/start/', {
@@ -48,15 +83,30 @@ function startQuiz() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.status === 'started') {
-            location.reload();  // Refresh to show question
-        } else {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function forceNext() {
+    fetch('/api/sessions/{{ session.id }}/force_next/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
             alert('Error: ' + data.error);
         }
     });
 }
 
 function submitAnswer(answerId) {
+    console.log('Submitting answer:', answerId);
     fetch('/api/sessions/{{ session.id }}/submit_answer/', {
         method: 'POST',
         headers: {
@@ -65,15 +115,58 @@ function submitAnswer(answerId) {
         },
         body: JSON.stringify({ answer_id: answerId })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Fetch response status:', response.status);
+        return response.json();
+    })
     .then(data => {
-        if (data.status === 'submitted') {
-            alert('Answer submitted!');
-            location.reload();  // Refresh to see next question or results
+        console.log('Response data:', data);
+        if (data.status && data.status.includes('submitted')) {
+            alert(data.status);
         } else {
-            alert('Error: ' + data.error);
+            alert('Error: ' + (data.error || 'Unknown'));
         }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Network error');
     });
 }
+
+function showQuestion(question) {
+    quizArea.innerHTML = `
+        <h3>${question.text}</h3>
+        <div id="timer">Time left: 30s</div>
+        <ul>
+            ${question.answers.map(answer => `<li><button onclick="submitAnswer(${answer.id})">${answer.text}</button></li>`).join('')}
+        </ul>
+    `;
+    startTimer(30);
+}
+
+function startTimer(seconds) {
+    let timeLeft = seconds;
+    const timerDiv = document.getElementById('timer');
+    const interval = setInterval(() => {
+        timerDiv.textContent = `Time left: ${timeLeft}s`;
+        timeLeft--;
+        if (timeLeft < 0) {
+            clearInterval(interval);
+            timerDiv.textContent = 'Time up!';
+            // Optionally, disable buttons or auto-submit
+        }
+    }, 1000);
+}
+
+function showResults(leaderboard) {
+    quizArea.innerHTML = `
+        <h3>Quiz Finished!</h3>
+        <h4>Leaderboard</h4>
+        <ol>
+            ${leaderboard.map(p => `<li>${p.username} - ${p.score} points</li>`).join('')}
+        </ol>
+    `;
+}
 </script>
+{% endblock %}
 {% endblock %}

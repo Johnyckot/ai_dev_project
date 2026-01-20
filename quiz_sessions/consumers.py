@@ -22,25 +22,25 @@ class QuizConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    # Receive message from WebSocket
+    # Receive message from WebSocket (not used for now)
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message = text_data_json['message']
+        pass
 
-        # Send message to room group
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'quiz_message',
-                'message': message
-            }
-        )
-
-    # Receive message from room group
-    async def quiz_message(self, event):
-        message = event['message']
-
-        # Send message to WebSocket
+    # Send message to WebSocket
+    async def quiz_started(self, event):
         await self.send(text_data=json.dumps({
-            'message': message
+            'type': 'quiz_started',
+            'question': event['question']
+        }))
+
+    async def next_question(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'next_question',
+            'question': event['question']
+        }))
+
+    async def quiz_finished(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'quiz_finished',
+            'leaderboard': event['leaderboard']
         }))
