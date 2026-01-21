@@ -24,3 +24,4 @@ coverage.xml
 .hypothesis
 db.sqlite3
 _promts
+_promts/1.md
